@@ -6,10 +6,14 @@
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
     "test:unit": "vue-cli-service test:unit",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "serve-b":"serve -s dist"
   },
   "dependencies": {
+    "@primevue/themes": "^4.2.5",
     "core-js": "^3.8.3",
+    "primeicons": "^7.0.0",
+    "primevue": "^4.2.5",
     "register-service-worker": "^1.7.2",
     "vue": "^3.2.13",
     "vue-class-component": "^8.0.0-0",
