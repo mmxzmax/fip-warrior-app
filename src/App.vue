@@ -49,11 +49,18 @@
               </div>
             </div>
           </div>
-          <div class="app-footer">
-            <OverlayBadge :value="((cat.weight * cat.dayDoze) / cat.gs).toFixed(2)">
-              <Chip :label="`${cat.weight} kg`" />
-            </OverlayBadge>
-          </div>
+          <Toolbar>
+            <template #start>
+              <OverlayBadge
+                :value="`${((cat.weight * cat.dayDoze) / cat.gs).toFixed(2)} ml`"
+              >
+                <Chip :label="`${cat.weight} kg`" />
+              </OverlayBadge>
+            </template>
+            <template #end>
+              <Button label="skip point" @click="markPoint(true)"
+            /></template>
+          </Toolbar>
         </TabPanel>
       </TabPanels>
     </Tabs>
@@ -64,8 +71,14 @@
       header="Edit Profile"
       :style="{ width: '25rem' }"
     >
-      <Fieldset :legend="cat.name" v-for="(cat, index) in cats" :key="index">
+      <Fieldset v-for="(cat, index) in cats" :key="index">
         <div>
+          <Toolbar>
+            <template #start>{{ cat.name }}</template>
+            <template #end
+              ><Button icon="pi pi-trash" @click="removeCat(index)" severity="danger"
+            /></template>
+          </Toolbar>
           <div class="app-cat-profile">
             <FloatLabel>
               <InputText id="catName" v-model="cat.name" />
@@ -101,7 +114,20 @@
             </FloatLabel>
           </div>
 
-          <Button icon="pi pi-trash" @click="removeCat(index)" severity="danger" />
+          <div class="app-cat-profile">
+            <ol class="app-schema">
+              <li v-for="(point, index) in cat.points" :key="index">
+                <InputText v-model="cat.schema[index]" />
+              </li>
+            </ol>
+
+            <Toolbar>
+              <template #start>
+                <Button icon="pi pi-minus" @click="deletePoints()" />
+              </template>
+              <template #end><Button icon="pi pi-plus" @click="addPoints()" /></template>
+            </Toolbar>
+          </div>
         </div>
       </Fieldset>
 
@@ -151,7 +177,7 @@ function addCat() {
     num: 1,
     gs: 30,
     dayDoze: 8,
-    schema: availablePoints,
+    schema: [...availablePoints],
     points: generatePoints(availablePoints),
   });
   saveCats();
@@ -163,6 +189,18 @@ function removeCat(index) {
 }
 
 function saveCats(closeWin) {
+  if (closeWin) {
+    cats.value.forEach((cat) => {
+      const fixedSchema = [];
+      cat.schema.forEach((item, index) => {
+        const i = cat.schema.findIndex((v) => v == index + 1);
+        if (i !== -1) {
+          fixedSchema.push(i + 1);
+        }
+      });
+      cat.schema = fixedSchema;
+    });
+  }
   localStorage.setItem("fipWarriorCats", JSON.stringify(cats.value));
   if (closeWin) {
     visible.value = false;
@@ -185,21 +223,42 @@ function generatePoints(schema) {
 function fillPoints() {
   const catsArr = JSON.parse(localStorage.getItem("fipWarriorCats") ?? "[]");
   cats.value = catsArr;
+  curCat.value = cats.value[0]?.id ?? 0;
 }
 
-function markPoint() {
-  const cat = cats.value[curCat.value];
+function getCurrentCat() {
+  return cats.value.find((cat) => cat.id == curCat.value);
+}
+
+function addPoints() {
+  const cat = getCurrentCat();
+  cat.schema.push(cat.schema.length + 1, cat.schema.length + 2);
+  cat.points = generatePoints(cat.schema);
+  saveCats();
+}
+
+function deletePoints() {
+  const cat = getCurrentCat();
+  cat.schema.splice(cat.schema.length - 2, 2);
+  cat.points = generatePoints(cat.schema);
+  saveCats();
+}
+
+function markPoint(skipCouter = false) {
+  const cat = getCurrentCat();
   const activePoint = cat.points.find((item) => item.active);
-  let schemaIndex = cat.schema.findIndex((v) => v === activePoint.value);
+  let schemaIndex = cat.schema.findIndex((v) => v == activePoint.value);
   schemaIndex++;
 
   if (schemaIndex >= cat.schema?.length) {
     schemaIndex = 0;
   }
-  const nextPoint = cat.points.find((item) => item.value === cat.schema[schemaIndex]);
+  const nextPoint = cat.points.find((item) => item.value == cat.schema[schemaIndex]);
   activePoint.active = false;
   nextPoint.active = true;
-  cat.num++;
+  if (!skipCouter) {
+    cat.num++;
+  }
   saveCats();
 }
 </script>
@@ -280,6 +339,21 @@ function markPoint() {
     > * {
       align-self: center;
       justify-self: center;
+    }
+  }
+  &-schema {
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: 50% 50%;
+    grid-gap: 0.5rem;
+    li {
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      .p-inputtext {
+        width: 4rem;
+      }
     }
   }
 }
