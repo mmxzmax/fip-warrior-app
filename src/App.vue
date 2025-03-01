@@ -7,9 +7,8 @@
             <Chip :label="cat.name" />
           </OverlayBadge>
         </Tab>
-        <Button class="edit-button" label="edit" @click="visible = true" />
       </TabList>
-      <TabPanels>
+      <TabPanels v-if="cats?.length">
         <TabPanel v-for="(cat, index) in cats" :key="index" :value="cat.id">
           <div class="app-main">
             <svg
@@ -49,20 +48,41 @@
               </div>
             </div>
           </div>
-          <Toolbar>
-            <template #start>
-              <OverlayBadge
-                :value="`${((cat.weight * cat.dayDoze) / cat.gs).toFixed(2)} ml`"
-              >
-                <Chip :label="`${cat.weight} kg`" />
-              </OverlayBadge>
-            </template>
-            <template #end>
-              <Button label="skip point" @click="markPoint(true)"
-            /></template>
-          </Toolbar>
         </TabPanel>
       </TabPanels>
+      <Toolbar class="app-footer">
+        <template #start>
+          <Chip v-if="cats?.length" :label="`${selectedCat?.weight} kg`" />
+        </template>
+        <template #center
+          ><Chip
+            v-if="cats?.length"
+            :label="`${(
+              (selectedCat?.weight * selectedCat?.dayDoze) /
+              selectedCat?.gs
+            ).toFixed(2)} ml`"
+        /></template>
+        <template #end>
+          <Button
+            v-if="cats?.length"
+            style="margin-right: 0.5rem"
+            label="skip point"
+            @click="markPoint(true)" />
+          <Button
+            style="margin-left: auto"
+            v-if="cats?.length"
+            class="edit-button"
+            label="edit"
+            @click="visible = true" />
+          <Button
+            style="margin-left: 0.5rem"
+            label="Add cat"
+            @click="
+              visible = true;
+              addCat();
+            "
+        /></template>
+      </Toolbar>
     </Tabs>
 
     <Dialog
@@ -71,70 +91,75 @@
       header="Edit Profile"
       :style="{ width: '25rem' }"
     >
-      <Fieldset v-for="(cat, index) in cats" :key="index">
+      <Fieldset v-if="cats?.length">
         <div>
           <Toolbar>
-            <template #start>{{ cat.name }}</template>
+            <template #start>{{ selectedCat?.name }}</template>
             <template #end
-              ><Button icon="pi pi-trash" @click="removeCat(index)" severity="danger"
+              ><Button
+                icon="pi pi-trash"
+                @click="removeCat(selectedCat?.id)"
+                severity="danger"
             /></template>
           </Toolbar>
           <div class="app-cat-profile">
             <FloatLabel>
-              <InputText id="catName" v-model="cat.name" />
+              <InputText id="catName" v-model="selectedCat.name" />
               <label for="catName">name</label>
             </FloatLabel>
           </div>
 
           <div class="app-cat-profile">
             <FloatLabel>
-              <InputText id="catWeight" v-model="cat.weight" />
+              <InputText id="catWeight" v-model="selectedCat.weight" />
               <label for="catWeight">weight</label>
             </FloatLabel>
           </div>
 
           <div class="app-cat-profile">
             <FloatLabel>
-              <InputText id="catGS" v-model="cat.gs" />
+              <InputText id="catGS" v-model="selectedCat.gs" />
               <label for="catGS">gs-441524 concentration</label>
             </FloatLabel>
           </div>
 
           <div class="app-cat-profile">
             <FloatLabel>
-              <InputText id="catdayDoze" v-model="cat.dayDoze" />
+              <InputText id="catdayDoze" v-model="selectedCat.dayDoze" />
               <label for="catdayDoze">gs-441524 daydoze</label>
             </FloatLabel>
           </div>
 
           <div class="app-cat-profile">
             <FloatLabel>
-              <InputText id="injectionCount" v-model="cat.num" />
+              <InputText id="injectionCount" v-model="selectedCat.num" />
               <label for="injectionCount">injection</label>
             </FloatLabel>
           </div>
 
           <div class="app-cat-profile">
             <ol class="app-schema">
-              <li v-for="(point, index) in cat.points" :key="index">
-                <InputText v-model="cat.schema[index]" />
+              <li v-for="(point, index) in selectedCat?.points" :key="index">
+                <Button
+                  :label="schemaEditorState[index] ? selectedCat.schema[index] : '*'"
+                  @click="markSchemaPoint(selectedCat, index)"
+                />
               </li>
             </ol>
 
             <Toolbar>
               <template #start>
-                <Button icon="pi pi-minus" @click="deletePoints()" />
+                <Button icon="pi pi-minus" @click="deletePoints(selectedCat)" />
               </template>
-              <template #end><Button icon="pi pi-plus" @click="addPoints()" /></template>
+              <template #end
+                ><Button icon="pi pi-plus" @click="addPoints(selectedCat)"
+              /></template>
             </Toolbar>
           </div>
         </div>
       </Fieldset>
 
       <Toolbar>
-        <template #start>
-          <Button icon="pi pi-plus" @click="addCat()" />
-        </template>
         <template #end> <Button label="Save" @click="saveCats(true)" /></template>
       </Toolbar>
     </Dialog>
@@ -142,7 +167,7 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import Button from "primevue/button";
 import "primeicons/primeicons.css";
 import OverlayBadge from "primevue/overlaybadge";
@@ -167,11 +192,17 @@ const curCat = ref(0);
 
 const cats = ref([]);
 
+let schemaCounter = 0;
+let schemaEditorState = ref([]);
+
+const selectedCat = computed(() => getCurrentCat());
+
 fillPoints();
 
 function addCat() {
+  const nextId = cats.value?.length ?? 0;
   cats.value.push({
-    id: cats.value?.length ?? 0,
+    id: nextId,
     name: "",
     weight: null,
     num: 1,
@@ -180,11 +211,17 @@ function addCat() {
     schema: [...availablePoints],
     points: generatePoints(availablePoints),
   });
+  curCat.value = nextId;
   saveCats();
 }
 
-function removeCat(index) {
+function removeCat(id) {
+  if (id === undefined) {
+    return;
+  }
+  const index = cats.value.findIndex((cat) => cat.id == id);
   cats.value.splice(index, 1);
+  curCat.value = cats.value[0]?.id ?? 0;
   saveCats();
 }
 
@@ -199,7 +236,13 @@ function saveCats(closeWin) {
         }
       });
       cat.schema = fixedSchema;
+      if (schemaEditorState.value?.length) {
+        cat.points.forEach((point) => {
+          point.active = point.value == cat.schema[0];
+        });
+      }
     });
+    schemaEditorState.value = [];
   }
   localStorage.setItem("fipWarriorCats", JSON.stringify(cats.value));
   if (closeWin) {
@@ -230,18 +273,25 @@ function getCurrentCat() {
   return cats.value.find((cat) => cat.id == curCat.value);
 }
 
-function addPoints() {
-  const cat = getCurrentCat();
+function addPoints(cat) {
   cat.schema.push(cat.schema.length + 1, cat.schema.length + 2);
   cat.points = generatePoints(cat.schema);
   saveCats();
 }
 
-function deletePoints() {
-  const cat = getCurrentCat();
+function deletePoints(cat) {
   cat.schema.splice(cat.schema.length - 2, 2);
   cat.points = generatePoints(cat.schema);
   saveCats();
+}
+
+function markSchemaPoint(cat, index) {
+  cat.schema[index] = schemaCounter + 1;
+  schemaCounter++;
+  schemaEditorState.value[index] = true;
+  if (schemaCounter >= cat.schema.length) {
+    schemaCounter = 0;
+  }
 }
 
 function markPoint(skipCouter = false) {
@@ -299,14 +349,8 @@ function markPoint(skipCouter = false) {
     }
   }
   &-footer {
-    padding: 1rem;
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    > * {
-      &:first-child {
-        margin-left: 0;
-      }
+    .p-toolbar-end {
+      width: 100%;
     }
   }
   &-header {
@@ -322,7 +366,10 @@ function markPoint(skipCouter = false) {
     }
   }
   &-cat-profile {
-    margin-top: 1rem;
+    margin-top: 1.75rem;
+    input {
+      width: 100%;
+    }
   }
   &-injection-field {
     position: absolute;
@@ -347,9 +394,10 @@ function markPoint(skipCouter = false) {
     display: grid;
     grid-template-columns: 50% 50%;
     grid-gap: 0.5rem;
+    margin-bottom: 1rem;
     li {
       display: flex;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: center;
       .p-inputtext {
         width: 4rem;
