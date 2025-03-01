@@ -335,6 +335,15 @@ function markPoint(skipCouter = false) {
     height: 100%;
     overflow: hidden;
     position: relative;
+    .p-tabpanels {
+      height: 100%;
+      min-height: 1rem;
+      position: relative;
+      .p-tabpanel {
+        height: 100%;
+        position: relative;
+      }
+    }
   }
   &-main {
     width: 100%;
@@ -353,18 +362,6 @@ function markPoint(skipCouter = false) {
       width: 100%;
     }
   }
-  &-header {
-    height: 4rem;
-    z-index: 100;
-    display: flex;
-    padding: 1rem;
-    > * {
-      margin-left: 1rem;
-      &:first-child {
-        margin-left: 0;
-      }
-    }
-  }
   &-cat-profile {
     margin-top: 1.75rem;
     input {
@@ -380,6 +377,7 @@ function markPoint(skipCouter = false) {
     display: grid;
     grid-template-columns: 50% 50%;
     width: 35vh;
+    max-width: 100%;
     align-items: flex-end;
     padding-bottom: 2rem;
     grid-gap: 0.5rem;
