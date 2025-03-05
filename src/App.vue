@@ -24,6 +24,12 @@
                 style="stroke-width: 2.32294"
               />
             </svg>
+            <Button
+              v-if="cats?.length"
+              class="share-button"
+              icon="pi pi-qrcode"
+              @click="getQrCode(!!cats?.length)"
+            />
             <div class="app-injection-field">
               <div
                 v-for="(item, index) in cat.points"
@@ -66,14 +72,22 @@
           <Button
             v-if="cats?.length"
             style="margin-right: 0.5rem"
+            label="mark point"
+            @click="markPoint(false)"
+          />
+          <Button
+            v-if="cats?.length"
+            style="margin-right: 0.5rem"
             label="skip point"
-            @click="markPoint(true)" />
+            @click="markPoint(true)"
+          />
           <Button
             style="margin-left: auto"
             v-if="cats?.length"
             class="edit-button"
             label="edit"
-            @click="visible = true" />
+            @click="visible = true"
+          />
           <Button
             style="margin-left: 0.5rem"
             label="Add cat"
@@ -81,7 +95,14 @@
               visible = true;
               addCat();
             "
-        /></template>
+          />
+          <Button
+          :style="{'margin-left': 'auto'}"
+            v-if="!cats?.length"
+            icon="pi pi-qrcode"
+            @click="getQrCode(false)"
+          />
+        </template>
       </Toolbar>
     </Tabs>
 
@@ -163,6 +184,10 @@
         <template #end> <Button label="Save" @click="saveCats(true)" /></template>
       </Toolbar>
     </Dialog>
+
+    <Dialog v-model:visible="qrVisible" modal header="Share">
+      <img :src="qrImg" />
+    </Dialog>
   </div>
 </template>
 
@@ -181,12 +206,16 @@ import Tab from "primevue/tab";
 import TabPanels from "primevue/tabpanels";
 import TabPanel from "primevue/tabpanel";
 import Fieldset from "primevue/fieldset";
-
 import Toolbar from "primevue/toolbar";
+import QRCode from "qrcode";
 
 const availablePoints = [1, 4, 5, 2, 3, 6];
 
 const visible = ref(false);
+
+const qrVisible = ref(false);
+
+const qrImg = ref("");
 
 const curCat = ref(0);
 
@@ -197,19 +226,54 @@ let schemaEditorState = ref([]);
 
 const selectedCat = computed(() => getCurrentCat());
 
+async function getQrCode(exportCat = false) {
+  const url = new URL(window.location.href);
+  if (exportCat) {
+    const { name, weight, num, gs, dayDoze, schema, points } = selectedCat.value;
+    const dataStr = `${name}|${weight}|${num}|${gs}|${dayDoze}|${schema.join(",")}|${
+      points?.find((item) => item.active)?.value
+    }`;
+    url.searchParams.set("add", btoa(encodeURIComponent(dataStr)));
+  }
+  console.log(url.toString());
+  qrImg.value = await QRCode.toDataURL(url.toString());
+  qrVisible.value = true;
+}
+
 fillPoints();
 
-function addCat() {
-  const nextId = cats.value?.length ?? 0;
-  cats.value.push({
-    id: nextId,
+function addCat(
+  data = {
     name: "",
     weight: null,
     num: 1,
     gs: 30,
     dayDoze: 8,
     schema: [...availablePoints],
-    points: generatePoints(availablePoints),
+    activePoint: 1,
+  }
+) {
+  const nextId = cats.value?.length
+    ? cats.value
+        ?.map((item) => item.id)
+        .sort()
+        .reverse()[0] + 1
+    : 0;
+  console.log(
+    cats.value
+      ?.map((item) => item.id)
+      .sort()
+      .reverse()
+  );
+  cats.value.push({
+    id: nextId,
+    name: data.name,
+    weight: data.weight,
+    num: data.num,
+    gs: data.gs,
+    dayDoze: data.dayDoze,
+    schema: data.schema,
+    points: generatePoints(data.schema, data.activePoint),
   });
   curCat.value = nextId;
   saveCats();
@@ -250,11 +314,11 @@ function saveCats(closeWin) {
   }
 }
 
-function generatePoints(schema) {
+function generatePoints(schema, activePointValue = 1) {
   const pointsArr = [];
   for (let i = 0; i < schema.length; i++) {
     pointsArr.push({
-      active: i == 0,
+      active: activePointValue == i + 1,
       value: i + 1,
       visible: true,
       disabled: false,
@@ -267,6 +331,41 @@ function fillPoints() {
   const catsArr = JSON.parse(localStorage.getItem("fipWarriorCats") ?? "[]");
   cats.value = catsArr;
   curCat.value = cats.value[0]?.id ?? 0;
+  const searchParams = new URLSearchParams(window.location.search);
+  const data = searchParams.get("add");
+  window.history.pushState({}, document.title, window.location.pathname);
+  if (data) {
+    const [name, weight, num, gs, dayDoze, schema, activePoint] = decodeURIComponent(
+      atob(data)
+    ).split("|");
+    const newCat = {
+      name,
+      weight,
+      num,
+      gs,
+      dayDoze,
+      schema: schema.split(",").map((item) => +item),
+      activePoint,
+    };
+    const existCat = catsArr.find((c) => c.name == newCat.name);
+    if (existCat) {
+      const result = confirm(`Cat ${newCat.name} exist update?`);
+      if (result) {
+        existCat.name = newCat.name;
+        existCat.weight = newCat.weight;
+        existCat.num = newCat.num;
+        existCat.gs = newCat.gs;
+        existCat.dayDoze = newCat.dayDoze;
+        existCat.schema = newCat.schema;
+        existCat.points = generatePoints(newCat.schema, newCat.activePoint);
+      }
+    } else {
+      const result = confirm(`Add new cat ${newCat.name} ?`);
+      if (result) {
+        addCat(newCat);
+      }
+    }
+  }
 }
 
 function getCurrentCat() {
@@ -411,5 +510,10 @@ function markPoint(skipCouter = false) {
 }
 .p-tabpanels {
   height: 100%;
+}
+.share-button {
+  position: absolute !important;
+  top: 1rem;
+  right: 1rem;
 }
 </style>
