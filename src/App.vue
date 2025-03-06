@@ -71,33 +71,26 @@
         <template #end>
           <Button
             v-if="cats?.length"
-            style="margin-right: 0.5rem"
-            label="mark point"
+            style="margin-right: 1rem"
+            icon="pi pi-forward"
             @click="markPoint(false)"
           />
           <Button
             v-if="cats?.length"
-            style="margin-right: 0.5rem"
-            label="skip point"
+            style="margin-right: 1rem"
+            label="Пропустить"
             @click="markPoint(true)"
           />
           <Button
             style="margin-left: auto"
             v-if="cats?.length"
             class="edit-button"
-            label="edit"
+            icon="pi pi-pencil"
             @click="visible = true"
           />
+          <Button style="margin-left: 1rem" icon="pi pi-plus" @click="addCat()" />
           <Button
-            style="margin-left: 0.5rem"
-            label="Add cat"
-            @click="
-              visible = true;
-              addCat();
-            "
-          />
-          <Button
-          :style="{'margin-left': 'auto'}"
+            :style="{ 'margin-left': 'auto' }"
             v-if="!cats?.length"
             icon="pi pi-qrcode"
             @click="getQrCode(false)"
@@ -109,7 +102,7 @@
     <Dialog
       v-model:visible="visible"
       modal
-      header="Edit Profile"
+      header="Редактировать питомца"
       :style="{ width: '25rem' }"
     >
       <Fieldset v-if="cats?.length">
@@ -126,35 +119,35 @@
           <div class="app-cat-profile">
             <FloatLabel>
               <InputText id="catName" v-model="selectedCat.name" />
-              <label for="catName">name</label>
+              <label for="catName">Кличка</label>
             </FloatLabel>
           </div>
 
           <div class="app-cat-profile">
             <FloatLabel>
               <InputText id="catWeight" v-model="selectedCat.weight" />
-              <label for="catWeight">weight</label>
+              <label for="catWeight">Вес</label>
             </FloatLabel>
           </div>
 
           <div class="app-cat-profile">
             <FloatLabel>
               <InputText id="catGS" v-model="selectedCat.gs" />
-              <label for="catGS">gs-441524 concentration</label>
+              <label for="catGS">концентрация gs-441524</label>
             </FloatLabel>
           </div>
 
           <div class="app-cat-profile">
             <FloatLabel>
               <InputText id="catdayDoze" v-model="selectedCat.dayDoze" />
-              <label for="catdayDoze">gs-441524 daydoze</label>
+              <label for="catdayDoze">доза на 1 кг</label>
             </FloatLabel>
           </div>
 
           <div class="app-cat-profile">
             <FloatLabel>
               <InputText id="injectionCount" v-model="selectedCat.num" />
-              <label for="injectionCount">injection</label>
+              <label for="injectionCount">Какая инъекция по счету</label>
             </FloatLabel>
           </div>
 
@@ -181,13 +174,19 @@
       </Fieldset>
 
       <Toolbar>
-        <template #end> <Button label="Save" @click="saveCats(true)" /></template>
+        <template #end> <Button label="Сохранить" @click="saveCats(true)" /></template>
       </Toolbar>
     </Dialog>
 
-    <Dialog v-model:visible="qrVisible" modal header="Share">
+    <Dialog v-model:visible="qrVisible" modal header="Поделиться">
       <img :src="qrImg" />
+      <Toolbar>
+        <template #end><Button label="Скопировать url" @click="shareLinkUrl()" /></template>
+      </Toolbar>
     </Dialog>
+
+    <Toast />
+    <ConfirmDialog></ConfirmDialog>
   </div>
 </template>
 
@@ -208,6 +207,17 @@ import TabPanel from "primevue/tabpanel";
 import Fieldset from "primevue/fieldset";
 import Toolbar from "primevue/toolbar";
 import QRCode from "qrcode";
+import axios from "axios";
+import { useToast } from "primevue/usetoast";
+import Toast from "primevue/toast";
+import ConfirmDialog from "primevue/confirmdialog";
+import { useConfirm } from "primevue/useconfirm";
+import { onMounted } from "vue";
+import { setData, allData, delData, getData } from "./db/db";
+
+const confirm = useConfirm();
+
+const toast = useToast();
 
 const availablePoints = [1, 4, 5, 2, 3, 6];
 
@@ -216,6 +226,8 @@ const visible = ref(false);
 const qrVisible = ref(false);
 
 const qrImg = ref("");
+
+const qrUrl = ref("");
 
 const curCat = ref(0);
 
@@ -229,21 +241,35 @@ const selectedCat = computed(() => getCurrentCat());
 async function getQrCode(exportCat = false) {
   const url = new URL(window.location.href);
   if (exportCat) {
-    const { name, weight, num, gs, dayDoze, schema, points } = selectedCat.value;
-    const dataStr = `${name}|${weight}|${num}|${gs}|${dayDoze}|${schema.join(",")}|${
-      points?.find((item) => item.active)?.value
-    }`;
+    const { guid, name, weight, num, gs, dayDoze, schema, points } = selectedCat.value;
+    const dataStr = `${guid}|${name}|${weight}|${num}|${gs}|${dayDoze}|${schema.join(
+      ","
+    )}|${points?.find((item) => item.active)?.value}`;
     url.searchParams.set("add", btoa(encodeURIComponent(dataStr)));
   }
-  console.log(url.toString());
-  qrImg.value = await QRCode.toDataURL(url.toString());
+  qrUrl.value = url.toString();
+  qrImg.value = await QRCode.toDataURL(qrUrl.value);
+
   qrVisible.value = true;
 }
 
-fillPoints();
+async function shareLinkUrl() {
+  await navigator.clipboard.writeText(qrUrl.value);
+  toast.add({ severity: "success", summary: "Успех", detail: "url Скопирован", life: 3000 });
+}
 
-function addCat(
+onMounted(async () => {
+  fillPoints();
+});
+
+async function generateGuid() {
+  const res = await axios.get("https://www.uuidgenerator.net/api/version4");
+  return res.data;
+}
+
+async function addCat(
   data = {
+    guid: null,
     name: "",
     weight: null,
     num: 1,
@@ -251,7 +277,8 @@ function addCat(
     dayDoze: 8,
     schema: [...availablePoints],
     activePoint: 1,
-  }
+  },
+  showEdit = true
 ) {
   const nextId = cats.value?.length
     ? cats.value
@@ -259,14 +286,9 @@ function addCat(
         .sort()
         .reverse()[0] + 1
     : 0;
-  console.log(
-    cats.value
-      ?.map((item) => item.id)
-      .sort()
-      .reverse()
-  );
   cats.value.push({
     id: nextId,
+    guid: data.guid ?? (await generateGuid()),
     name: data.name,
     weight: data.weight,
     num: data.num,
@@ -275,21 +297,50 @@ function addCat(
     schema: data.schema,
     points: generatePoints(data.schema, data.activePoint),
   });
+  await saveCats();
   curCat.value = nextId;
-  saveCats();
+  if (showEdit) {
+    visible.value = true;
+  }
 }
 
 function removeCat(id) {
   if (id === undefined) {
     return;
   }
+
   const index = cats.value.findIndex((cat) => cat.id == id);
-  cats.value.splice(index, 1);
-  curCat.value = cats.value[0]?.id ?? 0;
-  saveCats();
+  const guid = cats.value[index].guid;
+  const name = cats.value[index].name;
+  confirm.require({
+    message: `Удалить питомца ${name} ?`,
+    header: "Подтвердите удаление",
+    icon: "pi pi-exclamation-triangle",
+    rejectProps: {
+      label: "Отмена",
+      severity: "secondary",
+      outlined: true,
+    },
+    acceptProps: {
+      label: "Удалить",
+    },
+    accept: async () => {
+      visible.value = false;
+      cats.value.splice(index, 1);
+      await delData(guid);
+      curCat.value = cats.value[0]?.id ?? 0;
+      await saveCats();
+      toast.add({
+        severity: "success",
+        summary: "Удаление успешно",
+        detail: `Питомец ${name} удален`,
+        life: 3000,
+      });
+    },
+  });
 }
 
-function saveCats(closeWin) {
+async function saveCats(closeWin) {
   if (closeWin) {
     cats.value.forEach((cat) => {
       const fixedSchema = [];
@@ -308,7 +359,14 @@ function saveCats(closeWin) {
     });
     schemaEditorState.value = [];
   }
-  localStorage.setItem("fipWarriorCats", JSON.stringify(cats.value));
+  for (let cat of cats.value) {
+    const { guid, ...data } = cat;
+    await setData(guid, {
+      ...data,
+      points: data.points.map((item) => ({ ...item })),
+      schema: data.schema.map((item) => item),
+    });
+  }
   if (closeWin) {
     visible.value = false;
   }
@@ -327,18 +385,31 @@ function generatePoints(schema, activePointValue = 1) {
   return pointsArr;
 }
 
-function fillPoints() {
-  const catsArr = JSON.parse(localStorage.getItem("fipWarriorCats") ?? "[]");
-  cats.value = catsArr;
+async function fillPoints() {
+  const dataKeys = await allData();
+  const catsArr = [];
+  for (let guid of dataKeys) {
+    const v = await getData(guid);
+    catsArr.push({ guid, ...v });
+  }
+  cats.value = catsArr.reverse();
   curCat.value = cats.value[0]?.id ?? 0;
   const searchParams = new URLSearchParams(window.location.search);
   const data = searchParams.get("add");
   window.history.pushState({}, document.title, window.location.pathname);
   if (data) {
-    const [name, weight, num, gs, dayDoze, schema, activePoint] = decodeURIComponent(
-      atob(data)
-    ).split("|");
+    const [
+      guid,
+      name,
+      weight,
+      num,
+      gs,
+      dayDoze,
+      schema,
+      activePoint,
+    ] = decodeURIComponent(atob(data)).split("|");
     const newCat = {
+      guid,
       name,
       weight,
       num,
@@ -347,23 +418,61 @@ function fillPoints() {
       schema: schema.split(",").map((item) => +item),
       activePoint,
     };
-    const existCat = catsArr.find((c) => c.name == newCat.name);
+    const existCat = catsArr.find((c) => c.guid == newCat.guid);
     if (existCat) {
-      const result = confirm(`Cat ${newCat.name} exist update?`);
-      if (result) {
-        existCat.name = newCat.name;
-        existCat.weight = newCat.weight;
-        existCat.num = newCat.num;
-        existCat.gs = newCat.gs;
-        existCat.dayDoze = newCat.dayDoze;
-        existCat.schema = newCat.schema;
-        existCat.points = generatePoints(newCat.schema, newCat.activePoint);
-      }
+      confirm.require({
+        message: `Питомец ${newCat.name} уже существует, обновить?`,
+        header: "Confirmation",
+        icon: "pi pi-exclamation-triangle",
+        rejectProps: {
+          label: "Отменить",
+          severity: "secondary",
+          outlined: true,
+        },
+        acceptProps: {
+          label: "Обновить",
+        },
+        accept: async () => {
+          existCat.name = newCat.name;
+          existCat.weight = newCat.weight;
+          existCat.num = newCat.num;
+          existCat.gs = newCat.gs;
+          existCat.dayDoze = newCat.dayDoze;
+          existCat.schema = newCat.schema;
+          existCat.points = generatePoints(newCat.schema, newCat.activePoint);
+          await saveCats();
+          await fillPoints();
+          toast.add({
+            severity: "success",
+            summary: "Обновление успешно завершено",
+            detail: `Данные питомца ${existCat.name} успешно обновлены`,
+            life: 3000,
+          });
+        },
+      });
     } else {
-      const result = confirm(`Add new cat ${newCat.name} ?`);
-      if (result) {
-        addCat(newCat);
-      }
+      confirm.require({
+        message: `Добавить нового питомца ${newCat.name}?`,
+        header: "Confirmation",
+        icon: "pi pi-exclamation-triangle",
+        rejectProps: {
+          label: "Отменить",
+          severity: "secondary",
+          outlined: true,
+        },
+        acceptProps: {
+          label: "Добавить",
+        },
+        accept: async () => {
+          await addCat(newCat, false);
+          toast.add({
+            severity: "success",
+            summary: "Добавление завершено",
+            detail: `Питомец ${newCat.name} добавлен`,
+            life: 3000,
+          });
+        },
+      });
     }
   }
 }

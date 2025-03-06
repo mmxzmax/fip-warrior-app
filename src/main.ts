@@ -4,6 +4,7 @@ import "./registerServiceWorker";
 import store from "./store";
 import PrimeVue from "primevue/config";
 import Aura from "@primevue/themes/aura";
+import { ConfirmationService, ToastService } from "primevue";
 
 createApp(App)
   .use(store)
@@ -12,4 +13,6 @@ createApp(App)
       preset: Aura,
     },
   })
+  .use(ToastService)
+  .use(ConfirmationService)
   .mount("#app");

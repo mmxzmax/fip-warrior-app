@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@primevue/themes": "^4.2.5",
+    "axios": "^1.8.1",
     "core-js": "^3.8.3",
+    "idb": "^8.0.2",
     "primeicons": "^7.0.0",
     "primevue": "^4.2.5",
     "qrcode": "^1.5.4",
